@@ -536,6 +536,35 @@
   #toast.show { transform: translateY(0); opacity: 1; }
   #toast.error { background: var(--pink); color: #fff; }
 
+  /* === BACKUP BUTTONS === */
+  .header-backup {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .btn-export {
+    background: var(--yellow);
+    color: var(--bg);
+    box-shadow: 3px 3px 0 #887700;
+    font-size: 8px;
+    padding: 8px 12px;
+  }
+
+  .btn-import {
+    background: var(--panel);
+    color: var(--text-dim);
+    border: 2px solid var(--border);
+    box-shadow: 3px 3px 0 var(--shadow);
+    font-size: 8px;
+    padding: 8px 12px;
+    cursor: pointer;
+    transition: transform 0.05s, filter 0.05s;
+  }
+
+  .btn-import:hover { color: var(--text); border-color: var(--border2); }
+  .btn-import:active { transform: translate(2px,2px); filter: brightness(0.85); }
+
   /* === SCROLLBAR === */
   ::-webkit-scrollbar { width: 8px; height: 8px; }
   ::-webkit-scrollbar-track { background: var(--bg); }
@@ -553,6 +582,12 @@
     <div class="stat-chip">🕹️ Video: <span id="sc-video">0</span></div>
     <div class="stat-chip">📦 Altro: <span id="sc-other">0</span></div>
     <div class="stat-chip">⚡ Gestione: <span id="sc-manage">0</span></div>
+  </div>
+  <div class="header-backup">
+    <button class="pixel-btn btn-export" onclick="exportData()" title="Esporta backup JSON">💾 BACKUP</button>
+    <label class="pixel-btn btn-import" title="Importa backup JSON">
+      📂 IMPORTA<input type="file" accept=".json" onchange="importData(event)" style="display:none;">
+    </label>
   </div>
 </header>
 
@@ -1155,7 +1190,47 @@ function escHtml(s) {
     .replace(/"/g,'&quot;');
 }
 
-function showToast(msg, isError = false) {
+// ===== EXPORT =====
+function exportData() {
+  const json = JSON.stringify(data, null, 2);
+  const blob = new Blob([json], { type: 'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  const date = new Date().toISOString().slice(0,10);
+  a.href     = url;
+  a.download = `niky-game-tracker-backup-${date}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('💾 Backup salvato!');
+}
+
+// ===== IMPORT =====
+function importData(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      // Validate basic structure
+      const keys = ['board','video','other','manage','notes'];
+      const valid = keys.every(k => Array.isArray(parsed[k]));
+      if (!valid) { showToast('⚠ File non valido!', true); return; }
+      if (!confirm(`Importare il backup?\nSovrascriverà i dati attuali:\n🎲 ${parsed.board.length} tavolo  🕹️ ${parsed.video.length} video  📦 ${parsed.other.length} altro`)) return;
+      data = parsed;
+      save();
+      renderAll();
+      showToast('✔ Dati importati!');
+    } catch(err) {
+      showToast('⚠ Errore lettura file!', true);
+    }
+    // Reset input so same file can be re-imported
+    event.target.value = '';
+  };
+  reader.readAsText(file);
+}
+
+
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'show' + (isError ? ' error' : '');
